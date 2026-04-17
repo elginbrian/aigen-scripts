@@ -10,6 +10,7 @@ This document explains the PowerShell automation used from your local Windows ma
 - `aigen-sync.ps1`: sync changed working-tree files (including uncommitted changes) to VPS, then redeploy both services.
 - `aigen-vps.ps1`: perform VPS service lifecycle operations (`Up`, `Down`, `Rebuild`).
 - `aigen-env.ps1`: synchronize `.env` files between local and VPS (`Push`, `Pull`).
+- `aigen-logs.ps1`: tail and stream remote runtime logs locally directly to your terminal.
 
 ## PowerShell Command Entry
 
@@ -29,6 +30,11 @@ aigen down
 aigen rebuild
 aigen env push
 aigen env pull
+aigen logs
+aigen logs be
+aigen logs fe
+aigen logs isc
+aigen logs db
 ```
 
 ## Command Behavior
@@ -126,6 +132,21 @@ Behavior:
 - Pulls remote `.env` into local `.env` for backend and ISourcing.
 - Creates local backup before overwrite:
   - `.env.bak-YYYYMMDD-HHMMSS`
+
+### 7) `aigen logs`
+
+Purpose:
+
+- Tail and stream remote docker container logs right in your local terminal.
+- Stop gracefully and return to your terminal anytime by pressing Ctrl+C.
+
+Behavior:
+
+- Targeted modes:
+  - `aigen logs be` or `aigen logs backend`: Ttails `dot-backend-api`
+  - `aigen logs fe` or `aigen logs frontend`: Tails `aigen-frontend`
+  - `aigen logs isc` or `aigen logs isourcing`: Tails `isourcing-app`
+  - `aigen logs db` or `aigen logs mysql`: Tails `aigen-mysql`
 
 ## Important Notes
 
