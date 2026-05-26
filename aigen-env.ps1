@@ -20,8 +20,19 @@ $repositories = @(
         Name = 'ISourcing'
         LocalEnvPath = Join-Path $workspaceRoot 'ISourcing\.env'
         RemoteEnvPath = '/home/elginbrian/ISourcing/.env'
+    },
+    [pscustomobject]@{
+        Name = 'import-pr-gateway'
+        LocalEnvPath = Join-Path $workspaceRoot 'import-pr-gateway\.env'
+        RemoteEnvPath = '/home/elginbrian/import-pr-gateway/.env'
+    },
+    [pscustomobject]@{
+        Name = 'aigen-import-pr'
+        LocalEnvPath = Join-Path $workspaceRoot 'aigen-import-pr\.env'
+        RemoteEnvPath = '/home/elginbrian/aigen-import-pr/.env'
     }
 )
+
 
 function Invoke-RemoteCommand {
     param(

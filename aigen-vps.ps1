@@ -49,8 +49,43 @@ fi
 docker stop isourcing-app >/dev/null 2>&1 || true
 '@
         RebuildCommand = 'bash ./redeploy.sh'
+    },
+    [pscustomobject]@{
+        Name = 'import-pr-gateway'
+        RemotePath = '/home/elginbrian/import-pr-gateway'
+        UpCommand = @'
+if docker ps -a --format '{{.Names}}' | grep -qx 'import-pr-gateway'; then
+    if [ "$(docker inspect -f '{{.State.Running}}' import-pr-gateway)" != "true" ]; then
+        docker start import-pr-gateway >/dev/null
+    fi
+else
+    npm install --omit=dev && docker build -t import-pr-gateway . && docker run -d --name import-pr-gateway --env-file .env --network ${DOCKER_NETWORK_NAME:-aigen_network} -p 4000:3000 --restart unless-stopped import-pr-gateway
+fi
+'@
+        DownCommand = @'
+docker stop import-pr-gateway >/dev/null 2>&1 || true
+'@
+        RebuildCommand = 'npm install --omit=dev && docker stop import-pr-gateway 2>/dev/null || true && docker rm import-pr-gateway 2>/dev/null || true && docker build -t import-pr-gateway . && docker run -d --name import-pr-gateway --env-file .env --network ${DOCKER_NETWORK_NAME:-aigen_network} -p 4000:3000 --restart unless-stopped import-pr-gateway'
+    },
+    [pscustomobject]@{
+        Name = 'aigen-import-pr'
+        RemotePath = '/home/elginbrian/aigen-import-pr'
+        UpCommand = @'
+if docker ps -a --format '{{.Names}}' | grep -qx 'aigen-import-pr'; then
+    if [ "$(docker inspect -f '{{.State.Running}}' aigen-import-pr)" != "true" ]; then
+        docker start aigen-import-pr >/dev/null
+    fi
+else
+    npm install --omit=dev && docker build -t aigen-import-pr . && docker run -d --name aigen-import-pr --env-file .env --network ${DOCKER_NETWORK_NAME:-aigen_network} --restart unless-stopped aigen-import-pr
+fi
+'@
+        DownCommand = @'
+docker stop aigen-import-pr >/dev/null 2>&1 || true
+'@
+        RebuildCommand = 'npm install --omit=dev && docker stop aigen-import-pr 2>/dev/null || true && docker rm aigen-import-pr 2>/dev/null || true && docker build -t aigen-import-pr . && docker run -d --name aigen-import-pr --env-file .env --network ${DOCKER_NETWORK_NAME:-aigen_network} --restart unless-stopped aigen-import-pr'
     }
 )
+
 
 function Invoke-RemoteCommand {
     param(

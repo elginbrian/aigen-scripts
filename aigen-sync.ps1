@@ -1,6 +1,6 @@
 param(
     [Parameter(Position = 0)]
-    [ValidateSet('all', 'be', 'fe', 'isc', 'backend', 'frontend', 'isourcing')]
+    [ValidateSet('all', 'be', 'fe', 'isc', 'gw', 'ipr', 'autotest', 'backend', 'frontend', 'isourcing', 'import-pr-gateway', 'aigen-import-pr')]
     [string]$Target = 'all'
 )
 
@@ -26,6 +26,27 @@ $repositories = @(
         LocalPath = Join-Path $workspaceRoot 'frontend'
         RemotePath = '/home/elginbrian/frontend'
         DeployCommand = 'bash ./redeploy.sh'
+    },
+    [pscustomobject]@{
+        Name = 'autotest'
+        LocalPath = Join-Path $workspaceRoot 'sinarmas-aigen-api-automation-test'
+        RemotePath = '/home/elginbrian/sinarmas-aigen-api-automation-test'
+        GitRemoteUrl = 'git@gitlab.dot.co.id:sinarmas/aigen/sinarmas-aigen-api-automation-test.git'
+        DeployCommand = 'source ~/.nvm/nvm.sh && npm install'
+    },
+    [pscustomobject]@{
+        Name = 'import-pr-gateway'
+        LocalPath = Join-Path $workspaceRoot 'import-pr-gateway'
+        RemotePath = '/home/elginbrian/import-pr-gateway'
+        GitRemoteUrl = 'git@gitlab.dot.co.id:sinarmas/aigen/import-pr-gateway.git'
+        DeployCommand = 'source ~/.nvm/nvm.sh && npm install --omit=dev && docker stop import-pr-gateway 2>/dev/null || true && docker rm import-pr-gateway 2>/dev/null || true && docker build -t import-pr-gateway . && touch .env && docker run -d --name import-pr-gateway --env-file .env --network ${DOCKER_NETWORK_NAME:-dot-backend_aigen-network} -p 4000:3000 --restart unless-stopped import-pr-gateway'
+    },
+    [pscustomobject]@{
+        Name = 'aigen-import-pr'
+        LocalPath = Join-Path $workspaceRoot 'aigen-import-pr'
+        RemotePath = '/home/elginbrian/aigen-import-pr'
+        GitRemoteUrl = 'git@gitlab.dot.co.id:sinarmas/aigen/aigen-import-pr.git'
+        DeployCommand = 'source ~/.nvm/nvm.sh && npm install --omit=dev && docker stop aigen-import-pr 2>/dev/null || true && docker rm aigen-import-pr 2>/dev/null || true && docker build -t aigen-import-pr . && touch .env && docker run -d --name aigen-import-pr --env-file .env --network ${DOCKER_NETWORK_NAME:-dot-backend_aigen-network} --restart unless-stopped aigen-import-pr'
     }
 )
 
@@ -79,15 +100,21 @@ function Get-SelectedRepositories {
 
     switch ($Selection.ToLowerInvariant()) {
         'all' { return @($repositories) }
+        'autotest' { return @($repositories | Where-Object { $_.Name -eq 'autotest' }) }
         'be' { return @($repositories | Where-Object { $_.Name -eq 'backend' }) }
         'backend' { return @($repositories | Where-Object { $_.Name -eq 'backend' }) }
         'fe' { return @($repositories | Where-Object { $_.Name -eq 'frontend' }) }
         'frontend' { return @($repositories | Where-Object { $_.Name -eq 'frontend' }) }
         'isc' { return @($repositories | Where-Object { $_.Name -eq 'ISourcing' }) }
         'isourcing' { return @($repositories | Where-Object { $_.Name -eq 'ISourcing' }) }
+        'gw' { return @($repositories | Where-Object { $_.Name -eq 'import-pr-gateway' }) }
+        'import-pr-gateway' { return @($repositories | Where-Object { $_.Name -eq 'import-pr-gateway' }) }
+        'ipr' { return @($repositories | Where-Object { $_.Name -eq 'aigen-import-pr' }) }
+        'aigen-import-pr' { return @($repositories | Where-Object { $_.Name -eq 'aigen-import-pr' }) }
         default { throw "Unsupported sync target: $Selection" }
     }
 }
+
 
 function Get-EnvValueFromFile {
     param(
@@ -322,7 +349,8 @@ function Sync-RepositoryFiles {
         [Parameter(Mandatory = $true)]
         [string]$RemotePath,
 
-        [string]$DeployCommand
+        [string]$GitRemoteUrl = '',
+        [string]$DeployCommand = ''
     )
 
     if (-not (Test-Path $LocalPath)) {
@@ -333,6 +361,20 @@ function Sync-RepositoryFiles {
     try {
         $branch = (git branch --show-current).Trim()
         if ($branch) {
+            # Check if remote directory exists - if not, clone first
+            & ssh $remoteHost "test -d $RemotePath/.git"
+            $remoteExists = $LASTEXITCODE -eq 0
+
+            if (-not $remoteExists) {
+                if ($GitRemoteUrl) {
+                    Write-Host "[$Name] Remote directory not found - cloning from $GitRemoteUrl..."
+                    Invoke-RemoteCommand -Command "git clone $GitRemoteUrl $RemotePath"
+                    Write-Host "[$Name] Clone complete."
+                } else {
+                    throw "[$Name] Remote path does not exist and no GitRemoteUrl defined. Cannot initialise VPS repo."
+                }
+            }
+
             Write-Host "[$Name] Setting VPS to branch '$branch' and pulling latest changes from origin..."
             Invoke-RemoteCommand -Command "cd $RemotePath && git fetch origin && git stash && git checkout $branch && git pull origin $branch"
         }
@@ -391,7 +433,15 @@ function Sync-RepositoryFiles {
 
 foreach ($repository in (Get-SelectedRepositories -Selection $Target)) {
     Write-Host "==> Syncing $($repository.Name)"
-    Sync-RepositoryFiles -Name $repository.Name -LocalPath $repository.LocalPath -RemotePath $repository.RemotePath -DeployCommand $repository.DeployCommand
+    $gitUrl = if ($repository.GitRemoteUrl) { $repository.GitRemoteUrl } else { '' }
+    $deployCmd = if ($repository.DeployCommand) { $repository.DeployCommand } else { '' }
+
+    Sync-RepositoryFiles `
+        -Name $repository.Name `
+        -LocalPath $repository.LocalPath `
+        -RemotePath $repository.RemotePath `
+        -GitRemoteUrl $gitUrl `
+        -DeployCommand $deployCmd
 }
 
 if ($Target -eq 'all') {
